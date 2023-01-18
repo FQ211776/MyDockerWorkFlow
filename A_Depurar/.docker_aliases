@@ -1,0 +1,681 @@
+#!/bin/sh
+
+alias dm='docker-machine'
+alias dmx='docker-machine ssh'
+alias dk='docker'
+alias dki='docker images'
+alias dks='docker service'
+alias dkrm='docker rm'
+alias dkl='docker logs'
+alias dklf='docker logs -f'
+alias dkflush='docker rm `docker ps --no-trunc -aq`'
+alias dkflush2='docker rmi $(docker images --filter "dangling=true" -q --no-trunc)'
+alias dkt='docker stats --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"'
+alias dkps="docker ps --format '{{.ID}} ~ {{.Names}} ~ {{.Status}} ~ {{.Image}}'"
+#----
+alias daws=d-aws-cli-fn
+alias dc=dc-fn
+alias dcu="docker-compose up -d"
+alias dcd="docker-compose down"
+alias dcr=dcr-fn
+alias dex=dex-fn
+alias di=di-fn
+alias dim="docker images"
+alias dip=dip-fn
+alias dl=dl-fn
+alias dnames=dnames-fn
+alias dps="docker ps"
+alias dpsa="docker ps -a"
+alias drmc=drmc-fn
+alias drmid=drmid-fn
+alias drun=drun-fn
+alias dsp="docker system prune --all"
+alias dsr=dsr-fn
+# ----
+# ------------------------------------
+# Docker alias and function
+# ------------------------------------
+
+# Get latest container ID
+alias dl="docker ps -l -q"
+
+# Get container process
+alias dps="docker ps"
+
+# Get process included stop container
+alias dpa="docker ps -a"
+
+# Get images
+alias di="docker images"
+
+# Get container IP
+alias dip="docker inspect --format '{{ .NetworkSettings.IPAddress }}'"
+
+# Run deamonized container, e.g., $dkd base /bin/echo hello
+alias dkd="docker run -d -P"
+
+# Run interactive container, e.g., $dki base /bin/bash
+alias dki="docker run -i -t -P"
+
+# Execute interactive container, e.g., $dex base /bin/bash
+alias dex="docker exec -i -t"
+
+# Stop all containers
+dstop() { docker stop $(docker ps -a -q); }
+
+# Remove all containers
+drm() { docker rm $(docker ps -a -q); }
+
+# Stop and Remove all containers
+alias drmf='docker stop $(docker ps -a -q) && docker rm $(docker ps -a -q)'
+
+# Remove all images
+dri() { docker rmi $(docker images -q); }
+
+# Dockerfile build, e.g., $dbu tcnksm/test 
+dbu() { docker build -t=$1 .; }
+
+# Show all alias related docker
+dalias() { alias | grep 'docker' | sed "s/^\([^=]*\)=\(.*\)/\1 => \2/"| sed "s/['|\']//g" | sort; }
+
+# Bash into running container
+dbash() { docker exec -it $(docker ps -aqf "name=$1") bash; }
+
+----
+
+
+# Get latest container ID
+alias dl="docker ps -l -q"
+
+# Get container process
+alias dps="docker ps"
+
+# Get process included stop container
+alias dpa="docker ps -a"
+
+# Get images
+alias di="docker images"
+
+# Get container IP
+alias dip="docker inspect --format '{{ .NetworkSettings.IPAddress }}'"
+
+# Run deamonized container, e.g., $dkd base /bin/echo hello
+alias dkd="docker run -d -P"
+
+# Run interactive container, e.g., $dki base /bin/bash
+alias dki="docker run -i -t -P"
+
+# Execute interactive container, e.g., $dex base /bin/bash
+alias dex="docker exec -i -t"
+
+
+# This allows us to view the log for any container by name.
+dkln() {
+  docker logs -f `docker ps | grep $1 | awk '{print $1}'`
+}
+
+dkp() {
+  if [ ! -f .dockerignore ]; then
+    echo "Warning, .dockerignore file is missing."
+    read -p "Proceed anyway?"
+  fi
+
+  if [ ! -f package.json ]; then
+    echo "Warning, package.json file is missing."
+    read -p "Are you in the right directory?"
+  fi
+
+  VERSION=`cat package.json | jq .version | sed 's/\"//g'`
+  NAME=`cat package.json | jq .name | sed 's/\"//g'`
+  LABEL="$1/$NAME:$VERSION"
+
+  docker build --build-arg NPM_TOKEN=${NPM_TOKEN} -t $LABEL .
+
+  read -p "Press enter to publish"
+  docker push $LABEL
+}
+
+dkpnc() {
+  if [ ! -f .dockerignore ]; then
+    echo "Warning, .dockerignore file is missing."
+    read -p "Proceed anyway?"
+  fi
+
+  if [ ! -f package.json ]; then
+    echo "Warning, package.json file is missing."
+    read -p "Are you in the right directory?"
+  fi
+
+  VERSION=`cat package.json | jq .version | sed 's/\"//g'`
+  NAME=`cat package.json | jq .name | sed 's/\"//g'`
+  LABEL="$1/$NAME:$VERSION"
+
+  docker build --build-arg NPM_TOKEN=${NPM_TOKEN} --no-cache=true -t $LABEL .
+  read -p "Press enter to publish"
+  docker push $LABEL
+}
+
+dkpl() {
+  if [ ! -f .dockerignore ]; then
+    echo "Warning, .dockerignore file is missing."
+    read -p "Proceed anyway?"
+  fi
+
+  if [ ! -f package.json ]; then
+    echo "Warning, package.json file is missing."
+    read -p "Are you in the right directory?"
+  fi
+
+  VERSION=`cat package.json | jq .version | sed 's/\"//g'`
+  NAME=`cat package.json | jq .name | sed 's/\"//g'`
+  LATEST="$1/$NAME:latest"
+
+  docker build --build-arg NPM_TOKEN=${NPM_TOKEN} --no-cache=true -t $LATEST .
+  read -p "Press enter to publish"
+  docker push $LATEST
+}
+
+dkclean() {
+  docker rm $(docker ps --all -q -f status=exited)
+  docker volume rm $(docker volume ls -qf dangling=true)
+}
+
+dkprune() {
+  docker system prune -af
+}
+
+# The dktop command presents a top-like display, showing memory, CPU, network I/O and block I/O.
+dktop() {
+  docker stats --format "table {{.Container}}\t{{.Name}}\t{{.CPUPerc}}  {{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}"
+}
+
+# That allows us to see stats for all containers or to filter by a a specific container name.
+dkstats() {
+  if [ $# -eq 0 ]
+    then docker stats --no-stream;
+    else docker stats --no-stream | grep $1;
+  fi
+}
+
+
+# Enter the container to have a look around, use dkps and dke {containerID} 3 characters
+dke() {
+  docker exec -it $1 /bin/sh
+}
+
+dkexe() {
+  docker exec -it $1 $2
+}
+
+dkreboot() {
+  osascript -e 'quit app "Docker"'
+  countdown 2
+  open -a Docker
+  echo "Restarting Docker engine"
+  countdown 120
+}
+
+dkstate() {
+  docker inspect $1 | jq .[0].State
+}
+
+# restart a service
+dksb() {
+  docker service scale $1=0
+  sleep 2
+  docker service scale $1=$2
+}
+
+mongo() {
+  mongoLabel=`docker ps | grep mongo | awk '{print $NF}'`
+  docker exec -it $mongoLabel mongo "$@"
+}
+
+redis() {
+  redisLabel=`docker ps | grep redis | awk '{print $NF}'`
+  docker exec -it $redisLabel redis-cli
+}
+
+
+function drmc-fn {
+       docker rm $(docker ps --all -q -f status=exited)
+}
+
+function drmid-fn {
+       imgs=$(docker images -q -f dangling=true)
+       [ ! -z "$imgs" ] && docker rmi "$imgs" || echo "no dangling images."
+}
+
+# in order to do things like dex $(dlab label) sh
+function dlab {
+       docker ps --filter="label=$1" --format="{{.ID}}"
+}
+
+---
+
+function dnames-fn {
+	for ID in `docker ps | awk '{print $1}' | grep -v 'CONTAINER'`
+	do
+    	docker inspect $ID | grep Name | head -1 | awk '{print $2}' | sed 's/,//g' | sed 's%/%%g' | sed 's/"//g'
+	done
+}
+
+function dip-fn {
+    echo "IP addresses of all named running containers"
+
+    for DOC in `dnames-fn`
+    do
+        IP=`docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$DOC"`
+        OUT+=$DOC'\t'$IP'\n'
+    done
+    echo -e $OUT | column -t
+    unset OUT
+}
+
+function dex-fn {
+	docker exec -it $1 ${2:-bash}
+}
+
+function di-fn {
+	docker inspect $1
+}
+
+function dl-fn {
+	docker logs -f $1
+}
+
+function drun-fn {
+	docker run -it $1 $2
+}
+
+function dcr-fn {
+	docker-compose run $@
+}
+
+function dsr-fn {
+	docker stop $1;docker rm $1
+}
+
+function drmc-fn {
+       docker rm $(docker ps --all -q -f status=exited)
+}
+
+# in order to do things like dex $(dlab label) sh
+function dlab {
+       docker ps --filter="label=$1" --format="{{.ID}}"
+}
+
+function dc-fn {
+        docker-compose $*
+}
+
+function d-aws-cli-fn {
+    docker run \
+           -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+           -e AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION \
+           -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+           amazon/aws-cli:latest $1 $2 $3
+}
+
+# ---
+
+
+# docker-container-grep: greps running containers for a given pattern
+function docker-container-grep() {
+    PATTERN=$@
+    docker ps -a | grep $PATTERN | grep -v ^CONTAINER
+}
+
+function docker-container-grep-running() {
+    PATTERN=$@
+    docker ps | grep $PATTERN | grep -v ^CONTAINER
+}
+
+# docker-container-kill-pattern: kills running containers matching a given pattern
+function docker-container-kill-pattern() {
+    PATTERN=$@
+    docker-container-grep-running $PATTERN | awk '{print $1}' | xargs -rI % bash -c 'echo $(docker kill %; echo "killed!");'
+}
+
+# docker-container-most-recent: returns the most recently launched container's id
+function docker-container-most-recent() {
+
+    docker ps | grep -v ^CONTAINER | head -n1 | awk '{print $1}'
+
+}
+
+docker-container-most-recent-killed: returns the latest exited container's id
+function docker-container-most-recent-killed() {
+
+    docker ps -a | grep Exited | head -n1 | awk '{print $1}'
+
+}
+
+# docker-container-diff-most-recent: 'docker diff' the most recently launched container
+function docker-container-diff-most-recent() {
+
+    LAST_CONTAINER=$(docker-container-most-recent)
+
+    if [ ! -z "$LAST_CONTAINER" ]
+    then
+        docker diff $LAST_CONTAINER
+    else
+        echo "There are no running containers!"
+    fi
+
+}
+
+
+# docker-container-get-ip: 'docker inspect' the most recently launched container and print its IP. It admits a container ID as argument also
+unction docker-container-get-ip() {
+
+    CONTAINER_ID=$1
+    if [ -z "$CONTAINER_ID" ]
+    then
+        CONTAINER_ID=$(docker-container-most-recent)
+    fi
+    if [ ! -z "$CONTAINER_ID" ]
+    then
+        docker inspect --format '{{ .NetworkSettings.IPAddress }}' $CONTAINER_ID
+    else
+        echo "There are no running containers!"
+    fi
+
+}
+
+# docker-container-inspect-most-recent: 'docker inspect' the most recently launched container
+function docker-container-inspect-most-recent() {
+
+    LAST_CONTAINER=$(docker-container-most-recent)
+    if [ ! -z "$LAST_CONTAINER" ]
+    then
+        docker inspect $LAST_CONTAINER
+    else
+        echo "There are no running containers!"
+    fi
+
+}
+# docker-container-get-root: 'docker inspect' the most recently launched container and print its IP. It admits a container ID as argument also.
+function docker-container-get-root() {
+
+    CONTAINER_ID=$1
+    if [ -z "$CONTAINER_ID" ]
+    then
+        CONTAINER_ID=$(docker-container-most-recent)
+    fi
+    if [ ! -z "$CONTAINER_ID" ]
+    then
+        docker inspect --format '{{ .HostsPath }}' $CONTAINER_ID
+    else
+        echo "There are no running containers!"
+    fi
+
+}
+
+# docker-container-map-port: maps host's port ($2) to container's ($1) port ($3)
+function docker-container-map-port() {
+    CONTAINER_ID=$1
+    SRC_PORT=$2
+    DST_PORT=$3
+    CONTAINER_IP=$(docker-container-get-ip $CONTAINER_ID)
+    iptables -t nat -A  DOCKER -p tcp --dport $SRC_PORT -j DNAT --to-destination $CONTAINER_IP:$DST_PORT
+}
+
+# docker-container-remove-all: removes every existant container in localhost. NOTE: It tries to kill every running container, then, it tries to remove all of them.
+function docker-container-remove-all() {
+
+    docker ps -a | grep -v ^CONTAINER | awk '{print $1}' | xargs -rI % bash -c 'docker kill %; docker rm %'
+
+}
+
+# docker-container-remove-all-non-running: removes only the non-running containers
+function docker-container-remove-all-non-running() {
+
+    docker ps -a | grep -v ^CONTAINER | grep Exit | awk '{print $1}' | xargs -rI % bash -c 'docker rm %'
+
+}
+
+# docker-container-remove-pattern: kills and removes containers matching a given pattern
+function docker-container-remove-pattern() {
+
+    PATTERN=$@
+    docker-container-kill-pattern $PATTERN
+    docker-container-grep $PATTERN | awk '{print $1}' | xargs -rI % bash -c 'echo $(docker rm %; echo "removed!")'
+
+}
+
+# docker-enter: uses 'nsenter' to chroot into container's root
+function docker-enter() {
+
+    NSENTER=/usr/local/bin/nsenter
+    if [ ! -e $NSENTER ]
+    then
+        docker run --rm -v /usr/local/bin:/target jpetazzo/nsenter
+    fi
+
+    if [ -z "$1" ]; then
+        echo "usage: docker-enter <container id/name> <command to run default:sh>"
+    else
+        CONTAINER_ID=$(docker inspect --format {{.State.Pid}} "$1")
+        if [ -z "$CONTAINER_ID" ]; then
+           exit 1
+        fi
+    shift
+    "$NSENTER" --target $CONTAINER_ID --mount --uts --ipc --net --pid -- "$@"
+fi
+
+}
+
+# docker-image-grep: greps images for a given pattern
+function docker-image-grep() {
+    PATTERN=$@
+    docker images | grep $PATTERN | grep -v ^REPOSITORY
+}
+
+
+# docker-image-most-recent: returns the most recently build image's id
+function docker-image-most-recent() {
+
+    docker images | grep -v ^REPOSITORY | head -n1 | awk '{print $3}'
+
+}
+
+# docker-image-remove-all: Are you sure? Tries to remove every image in docker host leaving a clean docker environment. NOTE: It calls 'docker-container-remove-all', then, tries to remove all the images.
+function docker-image-remove-all() {
+
+    docker-container-remove-all
+    docker images -a | grep -v ^REPOSITORY | awk '{print $3}' | xargs -rI % bash -c 'docker rmi %'
+
+}
+
+# docker-image-remove-orphan: It tries to remove every non tagged image.
+function docker-image-remove-orphan() {
+
+    docker images | grep "<none>" | awk '{print $3}' | xargs -rI % bash -c 'docker rmi %'
+
+}
+
+# docker-image-remove-pattern: removes images matching a given pattern
+function docker-image-remove-pattern() {
+    PATTERN=$@
+    docker-image-grep $PATTERN | awk '{print $1":"$2}' | xargs -rI % bash -c 'docker rmi %'
+}
+
+function docker-volumes-remove-orphan() {
+
+  docker volume rm $(docker volume ls -qf dangling=true)
+
+}
+
+
+alias di='docker images'
+
+alias drmi='docker rmi'
+
+alias dbu='docker build'
+
+alias drmi_all='docker rmi $* $(docker images -a -q)'
+
+alias drmi_dang='docker rmi $* $(docker images -q -f "dangling=true")'
+
+alias dhi='docker history $*'
+
+dhi_neat() {
+  ### dhi_neat <image name> [extra `docker history` options]
+  docker history "${1}" \
+    --format "{{ .Size }}\t{{ .CreatedBy }}" \
+    ${2:-} |
+    sort \
+      --key=1 \
+      --human-numeric-sort \
+      --reverse
+}
+
+##############
+# Containers #
+##############
+
+alias dps='docker ps'
+
+alias drit='docker run -it'
+
+alias deit='docker exec -it'
+
+alias dlog='docker logs'
+
+alias dip='docker inspect --format "{{ .NetworkSettings.IPAddress }}" $*'
+
+alias dstop_all='docker stop $* $(docker ps -q -f "status=running")'
+
+alias drm='docker rm'
+
+alias drm_stopped='docker rm $* $(docker ps -q -f "status=exited")'
+
+alias drmv_stopped='docker rm -v $* $(docker ps -q -f "status=exited")'
+
+alias drm_all='docker rm $* $(docker ps -a -q)'
+
+alias drmv_all='docker rm -v $* $(docker ps -a -q)'
+
+###########
+# Volumes #
+###########
+
+alias dvls='docker volume ls $*'
+
+alias dvrm_all='docker volume rm $(docker volume ls -q)'
+
+alias dvrm_dang='docker volume rm $(docker volume ls -q -f "dangling=true")'
+
+
+
+if (which docker &> /dev/null)
+then
+  # Add our plugin's bin diretory to user's path
+  PLUGIN_D="$(dirname $0)"
+  export PATH=${PATH}:${PLUGIN_D}/bin
+
+  alias d='docker'
+
+  # Most of these aliases are from http://www.kartar.net/2014/03/some-useful-docker-bash-functions-and-aliases/
+  alias dkd='docker run -d -P'
+  alias dki='docker run -t -i -P'
+  alias dkl='docker ps -l -q'
+  alias docker-daemonize='docker run -d -P'
+  alias docker-interactive='docker run -t -i -P'
+  alias docker-last='docker ps -l -q'
+  alias dockerbuild='docker build'
+  alias dockerimages='docker images'
+  alias dockerps='docker ps'
+
+  d-ip() {
+    docker inspect --format "{{ .NetworkSettings.IPAddress }}" $1
+  }
+
+  dkb() {
+    docker build -t="$1" .
+  }
+
+  d-grep() {
+    docker ps | grep $@ | grep -v ^CONTAINER
+  }
+
+  d-kill-pattern() {
+    docker ps \
+      | grep $@ \
+      | grep -v ^CONTAINER \
+      | awk '{print $1}' \
+      | xargs -rI % bash -c 'echo $(docker kill %; echo "killed!");'
+  }
+
+  d-pid() {
+    docker inspect --format "{{ .State.Pid }}" $1
+  }
+
+  d-purge() {
+    docker rm $(docker ps -a -q);
+  }
+
+  d-stats() {
+    docker ps -q | xargs docker stats
+  }
+
+  d-stop() {
+    # Stop all running containers
+    docker stop $(docker ps -a -q);
+  }
+
+  d-zsh() {
+    local TAG=$1
+    docker run -v /tmp:/host_tmp:rw -i -t $TAG /bin/zsh
+  }
+
+  dps-monitor() {
+     while true
+     do
+         clear
+         docker ps | cut -c -$(tput cols)
+         sleep 0.5
+     done
+  }
+
+  # helpers for starting a container with access to the current directory
+
+  d-alpine() {
+    docker run -v $(pwd):/shared --rm -it alpine:latest /bin/sh
+  }
+
+  d-busybox() {
+    docker run -v $(pwd):/shared --rm -it busybox:latest /bin/sh
+  }
+
+  d-debian() {
+    docker run -v $(pwd):/shared --rm -it debian:latest /bin/bash
+  }
+
+  d-centos() {
+    docker run -v $(pwd):/shared --rm -it centos:centos7 /bin/bash
+  }
+
+  d-centos6() {
+    docker run -v $(pwd):/shared --rm -it centos:centos6 /bin/bash
+  }
+
+  d-fedora() {
+    docker run -v $(pwd):/shared --rm -it fedora:20 /bin/bash
+  }
+
+  d-ubuntu() {
+    docker run -v $(pwd):/shared --rm -it ubuntu:14.04 /bin/bash
+  }
+
+fi
+
+if (which docker-compose &> /dev/null)
+then
+  alias d-cp=docker-compose
+fi
+
+function docker-tags(){
+  curl -s -S "https://registry.hub.docker.com/v2/repositories/$@/tags/" | jq '."results"[]["name"]' |sort
+}
