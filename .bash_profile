@@ -48,6 +48,7 @@ fi
 ###############
 
 export EDITOR="code --wait"
+export GITHUB_USERNAME="FQ211776"
 
 
 export PATH=$PATH:.
