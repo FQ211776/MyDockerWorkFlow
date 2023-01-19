@@ -47,12 +47,16 @@ fi
 ### EXPORTS ###
 ###############
 
+export EDITOR="code --wait"
+
+
 export PATH=$PATH:.
 export PATH=$PATH:$HOME/bin
 
 # wrappers to run commands installed in JuNest directly from host:
 export PATH=~/.local/share/junest/bin:$PATH
 export PATH="$PATH:~/.junest/usr/bin_wrappers"
+
 
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
